@@ -9,7 +9,8 @@ module Ledger.Scripts (
   examplePlutusScriptAlwaysSucceedsHash,
   examplePlutusScriptAlwaysFailsHash,
   WitCtx (..),
-) where
+)
+where
 
 import Cardano.Api (
   PlutusScriptVersion (PlutusScriptV1),

@@ -6,7 +6,7 @@ let
     name = "cardano-node-emulator";
     src = ../.;
     # If you change this version number, adapt the GHA CI accordingly (.github/workflows/haskell.yml)
-    compiler-nix-name = lib.mkDefault "ghc965";
+    compiler-nix-name = lib.mkDefault "ghc967";
     shell.withHoogle = false;
     inputMap = {
       "https://chap.intersectmbo.org/" = inputs.CHaP;

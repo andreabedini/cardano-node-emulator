@@ -25,7 +25,8 @@ module Ledger.Crypto (
   sign',
   signTx',
   generateFromSeed',
-) where
+)
+where
 
 import Cardano.Crypto.Wallet qualified as Crypto
 import Codec.Serialise.Class (Serialise)
@@ -91,6 +92,7 @@ newtype PubKey = PubKey {getPubKey :: LedgerBytes}
     (PlutusTx.Eq, PlutusTx.Ord, Serialise, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData)
   deriving (IsString) via LedgerBytes
   deriving (Show, Pretty) via LedgerBytes
+
 makeLift ''PubKey
 
 instance ToJSONKey PubKey where

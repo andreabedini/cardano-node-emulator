@@ -5,7 +5,8 @@ module Control.Monad.Freer.Extras.State (
   use,
   assign,
   modifying,
-) where
+)
+where
 
 import Control.Lens (ASetter, Getting, over, set, view)
 import Control.Monad.Freer (Eff, Member)

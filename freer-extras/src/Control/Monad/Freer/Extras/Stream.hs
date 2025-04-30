@@ -4,7 +4,8 @@
 {- Interpreting the 'Yield' effect as a stream -}
 module Control.Monad.Freer.Extras.Stream (
   runStream,
-) where
+)
+where
 
 import Control.Monad.Freer
 import Control.Monad.Freer.Coroutine (Status (..), Yield, runC)
@@ -13,7 +14,7 @@ import Streaming.Prelude (Of)
 import Streaming.Prelude qualified as S
 
 {- | Turn the @Yield e ()@ effect into a pull-based stream
-  of @e@ events.
+ of @e@ events.
 -}
 runStream
   :: forall e a effs

@@ -8,14 +8,10 @@ module Cardano.Node.Emulator (
 
   -- * Contract helpers
   module Gen,
-
-  -- * Tests
-  module Cardano.Node.Emulator.Test,
-) where
+)
+where
 
 import Cardano.Node.Emulator.API
-import Cardano.Node.Emulator.Test
-
 import Cardano.Node.Emulator.Generators as Gen (
   alwaysSucceedPolicy,
   alwaysSucceedPolicyId,

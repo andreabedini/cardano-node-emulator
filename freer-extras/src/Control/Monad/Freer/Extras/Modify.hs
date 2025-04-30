@@ -46,7 +46,8 @@ module Control.Monad.Freer.Extras.Modify (
   monadStateToState,
   errorToMonadError,
   wrapError,
-) where
+)
+where
 
 import Control.Lens hiding (under)
 import Control.Monad.Except qualified as MTL
@@ -72,8 +73,10 @@ under f u = case decomp u of
 
 class UnderN as where
   underN :: (Union effs ~> Union effs') -> Union (as :++: effs) ~> Union (as :++: effs')
+
 instance UnderN '[] where
   underN f = f
+
 instance (UnderN as) => UnderN (a ': as) where
   underN f = under (underN @as f)
 
@@ -95,8 +98,10 @@ hence the double cons in the types to prevent overlap with the first instance.
 -}
 class CanWeakenEnd as effs where
   weakenEnd :: Union as ~> Union effs
+
 instance (effs ~ (a ': effs')) => CanWeakenEnd '[a] effs where
   weakenEnd u = inj (extract u)
+
 instance (effs ~ (a ': effs'), CanWeakenEnd (b ': as) effs') => CanWeakenEnd (a ': b ': as) effs where
   weakenEnd = under weakenEnd
 

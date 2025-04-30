@@ -3,7 +3,8 @@ module Control.Monad.Freer.Extras (
   module Control.Monad.Freer.Extras.Modify,
   module Control.Monad.Freer.Extras.State,
   module Control.Monad.Freer.Extras.Stream,
-) where
+)
+where
 
 import Control.Monad.Freer.Extras.Log
 import Control.Monad.Freer.Extras.Modify

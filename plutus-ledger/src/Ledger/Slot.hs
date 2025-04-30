@@ -20,20 +20,19 @@ module Ledger.Slot (
   Slot (..),
   SlotRange,
   width,
-) where
+)
+where
 
 import Codec.Serialise.Class (Serialise)
 import Data.Aeson (FromJSON, FromJSONKey, ToJSON, ToJSONKey)
+import Data.Data (Data)
 import GHC.Generics (Generic)
-import Prettyprinter (Pretty (pretty), (<+>))
-import Prelude qualified as Haskell
-
+import PlutusLedgerApi.V1.Interval
 import PlutusTx qualified
 import PlutusTx.Lift (makeLift)
 import PlutusTx.Prelude
-
-import Data.Data (Data)
-import PlutusLedgerApi.V1.Interval
+import Prettyprinter (Pretty (pretty), (<+>))
+import Prelude qualified as Haskell
 
 {- HLINT ignore "Redundant if" -}
 
@@ -80,17 +79,25 @@ width (Interval (LowerBound (Finite (Slot s1)) in1) (UpperBound (Finite (Slot s2
 width _ = Nothing
 
 deriving anyclass instance (Serialise a) => Serialise (Interval a)
+
 deriving anyclass instance (ToJSON a) => ToJSON (Interval a)
+
 deriving anyclass instance (FromJSON a) => FromJSON (Interval a)
 
 deriving anyclass instance (Serialise a) => Serialise (LowerBound a)
+
 deriving anyclass instance (ToJSON a) => ToJSON (LowerBound a)
+
 deriving anyclass instance (FromJSON a) => FromJSON (LowerBound a)
 
 deriving anyclass instance (Serialise a) => Serialise (UpperBound a)
+
 deriving anyclass instance (ToJSON a) => ToJSON (UpperBound a)
+
 deriving anyclass instance (FromJSON a) => FromJSON (UpperBound a)
 
 deriving anyclass instance (Serialise a) => Serialise (Extended a)
+
 deriving anyclass instance (ToJSON a) => ToJSON (Extended a)
+
 deriving anyclass instance (FromJSON a) => FromJSON (Extended a)

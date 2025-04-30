@@ -15,8 +15,6 @@
 
 module Ledger.Index.Internal where
 
-import Prelude hiding (lookup)
-
 import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C
 import Cardano.Binary qualified as CBOR
@@ -36,6 +34,7 @@ import PlutusLedgerApi.V1.Scripts qualified as Scripts
 import Prettyprinter (Pretty (..), hang, vsep, (<+>))
 import Prettyprinter.Extras (PrettyShow (..))
 import Prettyprinter.Util (reflow)
+import Prelude hiding (lookup)
 
 {- | A transaction on the blockchain.
 Invalid transactions are still put on the chain to be able to collect fees.
@@ -58,9 +57,6 @@ unOnChain = eitherTx id id
 -- | The UTxOs of a blockchain indexed by their references.
 type UtxoIndex = C.UTxO C.ConwayEra
 
-deriving newtype instance Semigroup (C.UTxO era)
-deriving newtype instance Monoid (C.UTxO era)
-
 -- | A reason why a transaction is invalid.
 data ValidationError
   = -- | The transaction output consumed by a transaction input could not be found (either because it was already spent, or because
@@ -77,13 +73,19 @@ data ValidationError
 makePrisms ''ValidationError
 
 instance FromJSON ValidationError
+
 instance ToJSON ValidationError
+
 deriving via (PrettyShow ValidationError) instance Pretty ValidationError
 
 data ValidationPhase = Phase1 | Phase2 deriving (Eq, Show, Generic, FromJSON, ToJSON)
+
 deriving via (PrettyShow ValidationPhase) instance Pretty ValidationPhase
+
 type ValidationErrorInPhase = (ValidationPhase, ValidationError)
+
 type ValidationSuccess = (RedeemerReport, Validated (Tx EmulatorEra))
+
 type RedeemerReport = Map.Map (PlutusPurpose AsIx EmulatorEra) ([Text], ExUnits)
 
 data ValidationResult

@@ -1,5 +1,4 @@
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Cardano.Node.Socket.Emulator.Query (handleQuery) where
@@ -8,6 +7,19 @@ import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C
 import Cardano.Ledger.Api.Transition qualified as C
 import Cardano.Ledger.BaseTypes (epochInfo)
+import Cardano.Node.Emulator.API qualified as E
+import Cardano.Node.Emulator.Internal.Node.Params (
+  Params (..),
+  emulatorEraHistory,
+  emulatorGlobals,
+  emulatorPParams,
+ )
+import Cardano.Node.Emulator.Internal.Node.TimeSlot (posixTimeToUTCTime, scSlotZeroTime)
+import Cardano.Node.Socket.Emulator.Types (
+  AppState (..),
+  getTip,
+  runChainEffects,
+ )
 import Cardano.Slotting.EpochInfo (epochInfoEpoch)
 import Cardano.Slotting.Slot (WithOrigin (..))
 import Control.Concurrent (MVar, readMVar)
@@ -27,20 +39,6 @@ import Ouroboros.Consensus.Shelley.Eras (ConwayEra, StandardCrypto)
 import Ouroboros.Consensus.Shelley.Ledger qualified as Shelley
 import Ouroboros.Consensus.Shelley.Ledger.Query (BlockQuery (..))
 import Ouroboros.Network.Block qualified as O
-
-import Cardano.Node.Emulator.API qualified as E
-import Cardano.Node.Emulator.Internal.Node.Params (
-  Params (..),
-  emulatorEraHistory,
-  emulatorGlobals,
-  emulatorPParams,
- )
-import Cardano.Node.Emulator.Internal.Node.TimeSlot (posixTimeToUTCTime, scSlotZeroTime)
-import Cardano.Node.Socket.Emulator.Types (
-  AppState (..),
-  getTip,
-  runChainEffects,
- )
 
 handleQuery
   :: (block ~ CardanoBlock StandardCrypto)
@@ -67,10 +65,11 @@ handleQuery state = \case
       O.TipGenesis -> pure Origin
       (O.Tip _ _ curBlockNo) -> pure $ At curBlockNo
   GetChainPoint -> printError "Unimplemented: GetChainPoint"
+  GetLedgerConfig -> printError "Unimplemented: GetLedgerConfig"
 
 queryIfCurrentConway
-  :: (block ~ Shelley.ShelleyBlock (Praos StandardCrypto) (ConwayEra StandardCrypto))
-  => BlockQuery block result
+  :: (block ~ Shelley.ShelleyBlock (Praos StandardCrypto) ConwayEra)
+  => BlockQuery block a result
   -> E.EmulatorT IO result
 queryIfCurrentConway = \case
   GetGenesisConfig -> Shelley.compactGenesis . view C.tcShelleyGenesisL . E.pConfig <$> E.getParams

@@ -52,12 +52,12 @@ module Control.Monad.Freer.Extras.Log (
   -- ** Handlers
   handleObserveLog,
   handleObserve,
-) where
-
-import Control.Monad.Freer.Extras.Modify (raiseUnder)
+)
+where
 
 import Control.Lens (AReview, Prism', makeLenses, prism', review)
 import Control.Monad.Freer
+import Control.Monad.Freer.Extras.Modify (raiseUnder)
 import Control.Monad.Freer.State (State, get, put, runState)
 import Control.Monad.Freer.Writer (Writer (..), tell)
 import Data.Aeson (FromJSON, ToJSON)
@@ -122,7 +122,7 @@ data LogMsg a r where
   LMessage :: LogMessage a -> LogMsg a ()
 
 {- | An abstract type used to tie the beginning and end of observations
-  together.
+ together.
 -}
 newtype ObservationHandle = ObservationHandle Integer
 
@@ -131,7 +131,7 @@ data LogObserve a r where
   ObserveAfter :: Maybe a -> ObservationHandle -> LogObserve a ()
 
 {- | The severity level of a log message
-  See https://en.wikipedia.org/wiki/Syslog#Severity_level
+ See https://en.wikipedia.org/wiki/Syslog#Severity_level
 -}
 data LogLevel
   = Debug
@@ -182,9 +182,9 @@ logError :: forall a effs. (Member (LogMsg a) effs) => a -> Eff effs ()
 logError m = send $ LMessage (LogMessage Error m)
 
 {- | Re-interpret a logging effect by mapping the
-  log messages.
-  (Does the same thing as 'Covariant.contramap' for
-  'Control.Tracer.Trace')
+ log messages.
+ (Does the same thing as 'Covariant.contramap' for
+ 'Control.Tracer.Trace')
 -}
 mapLog
   :: forall a b effs
@@ -196,7 +196,7 @@ mapLog f = \case
   LMessage msg -> send $ LMessage (fmap f msg)
 
 {- | Re-interpret a logging effect by mapping the
-  log messages. Can use other effects.
+ log messages. Can use other effects.
 -}
 mapMLog
   :: forall a b effs
@@ -252,8 +252,8 @@ handleLogTrace = interpret $ \case
   LMessage msg -> Trace.trace (Render.renderString . layoutPretty defaultLayoutOptions . pretty $ msg) (pure ())
 
 {- | Write a log message before and after an action. Consider using
-  'observeBefore' and 'observeAfter' directly if you need more control
-  over the values that are observed at the call site.
+ 'observeBefore' and 'observeAfter' directly if you need more control
+ over the values that are observed at the call site.
 -}
 surround :: forall v a effs. (Member (LogObserve v) effs) => v -> Eff effs a -> Eff effs a
 surround v action = do
@@ -313,8 +313,8 @@ initialState = ObsState 0 []
 -- see note [Logging and Tracing]
 
 {- | Handle the 'LogObserve' effect by recording observations
-  @s@ before and after the observed action, and turning
-  them into 'LogMessage (Observation s)' values.
+ @s@ before and after the observed action, and turning
+ them into 'LogMessage (Observation s)' values.
 -}
 handleObserve
   :: forall v s effs
@@ -386,7 +386,7 @@ handleObserve getCurrent handleObs =
         put newState
 
 {- | Interpret the 'LogObserve' effect by logging a "start" message
-  before the action and an "end" message after the action.
+ before the action and an "end" message after the action.
 -}
 handleObserveLog
   :: forall effs

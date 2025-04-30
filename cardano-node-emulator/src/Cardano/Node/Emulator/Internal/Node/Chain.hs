@@ -17,10 +17,10 @@
 
 module Cardano.Node.Emulator.Internal.Node.Chain where
 
+import Cardano.Api (SlotNo (SlotNo))
 import Cardano.Node.Emulator.Internal.Node.Params (Params)
 import Cardano.Node.Emulator.Internal.Node.Validation qualified as Validation
-import Cardano.Node.Emulator.Test.Coverage (getCoverageData)
-import Control.Lens (makeLenses, makePrisms, over, view, (%~), (&), (.~), (<>~))
+import Control.Lens (makeLenses, makePrisms, over, view, (%~), (&), (.~))
 import Control.Monad.Freer (Eff, Member, Members, send, type (~>))
 import Control.Monad.Freer.Extras.Log (LogMsg, logDebug, logInfo, logWarn)
 import Control.Monad.Freer.State (State, gets, modify)
@@ -28,7 +28,7 @@ import Control.Monad.State qualified as S
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Foldable (traverse_)
 import Data.List ((\\))
-import Data.Maybe (fromMaybe, mapMaybe)
+import Data.Maybe (mapMaybe)
 import Data.Traversable (for)
 import GHC.Generics (Generic)
 import Ledger (
@@ -41,7 +41,6 @@ import Ledger (
   unOnChain,
  )
 import Ledger.Index qualified as Index
-import PlutusTx.Coverage (CoverageData)
 import Prettyprinter (Pretty (pretty), vsep, (<+>))
 
 -- | Events produced by the blockchain emulator.
@@ -73,8 +72,6 @@ data ChainState = ChainState
   -- ^ The pool of pending transactions.
   , _index :: !Index.UtxoIndex
   -- ^ The UTxO index, used for validation.
-  , _coverageData :: CoverageData
-  -- ^ coverage data of validation scripts
   , _ledgerState :: Validation.EmulatedLedgerState
   -- ^ The internal state of the ledger.
   }
@@ -83,7 +80,7 @@ data ChainState = ChainState
 makeLenses ''ChainState
 
 emptyChainState :: Params -> ChainState
-emptyChainState params = ChainState [] [] mempty mempty (Validation.initialState params)
+emptyChainState params = ChainState [] [] mempty (Validation.initialState params)
 
 fromBlockchain :: Params -> Blockchain -> ChainState
 fromBlockchain params bc =
@@ -133,17 +130,15 @@ handleControlChain params = \case
     modify $ index .~ idx'
     modify $ ledgerState .~ ls'
     modify $ addBlock block
-    modify $ coverageData <>~ foldMap getChainEventCoverageData events
 
     traverse_ logEvent events
     pure block
   ModifySlot f -> do
-    _ <-
-      modify @ChainState
-        ( over
-            ledgerState
-            (Validation.updateSlot (\(Validation.SlotNo s) -> fromIntegral (f (fromIntegral s))))
-        )
+    modify @ChainState
+      ( over
+          (ledgerState . Validation.elsSlotL)
+          (\(SlotNo s) -> fromIntegral (f (fromIntegral s)))
+      )
     gets (Validation.getSlot . view ledgerState)
 
 logEvent :: (Member (LogMsg ChainEvent) effs) => ChainEvent -> Eff effs ()
@@ -152,10 +147,6 @@ logEvent e = case e of
   TxnValidation Index.FailPhase1{} -> logWarn e
   TxnValidation Index.FailPhase2{} -> logWarn e
   TxnValidation Index.Success{} -> logInfo e
-
-getChainEventCoverageData :: ChainEvent -> CoverageData
-getChainEventCoverageData SlotAdd{} = mempty
-getChainEventCoverageData (TxnValidation res) = getCoverageData res
 
 handleChain :: (Members ChainEffs effs) => Params -> ChainEffect ~> Eff effs
 handleChain params = \case
@@ -181,7 +172,7 @@ data ValidationCtx = ValidationCtx
   }
 
 {- | Validate a block given the current slot and UTxO index, returning the valid
-  transactions, success/failure events and the updated UTxO set.
+ transactions, success/failure events and the updated UTxO set.
 -}
 validateBlock
   :: Params -> Index.UtxoIndex -> Validation.EmulatedLedgerState -> TxPool -> ValidatedBlock
@@ -197,8 +188,7 @@ validateBlock params idx ls txns =
 
     -- Also return an `EmulatorEvent` for each transaction that was
     -- processed
-    nextSlot = Validation.getSlot ls + 1
-    events = (TxnValidation <$> results) ++ [SlotAdd nextSlot]
+    events = (TxnValidation <$> results) ++ [SlotAdd $ Validation.getSlot ls + 1]
    in
     ValidatedBlock block events idx' ls'
 
@@ -209,13 +199,12 @@ validateEm
   -> m Index.ValidationResult
 validateEm txn = do
   ctx@(ValidationCtx idx params ls) <- S.get
-  let
-    (ls', res) = Validation.validateCardanoTx params ls txn
-    idx' = case res of
-      Index.FailPhase1{} -> idx
-      Index.FailPhase2{} -> Index.insertCollateral txn idx
-      Index.Success{} -> Index.insert txn idx
-  _ <- S.put ctx{vctxIndex = idx', vctxLedgerState = fromMaybe ls ls'}
+  let (ls', res) = Validation.validateCardanoTx params ls txn
+      idx' = case res of
+        Index.FailPhase1{} -> idx
+        Index.FailPhase2{} -> Index.insertCollateral txn idx
+        Index.Success{} -> Index.insert txn idx
+  _ <- S.put ctx{vctxIndex = idx', vctxLedgerState = ls'}
   pure res
 
 -- | Adds a block to ChainState, without validation.

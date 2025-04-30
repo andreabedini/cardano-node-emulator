@@ -39,7 +39,8 @@ module Control.Monad.Freer.Extras.Pagination (
   Page (..),
   PageSize (..),
   pageOf,
-) where
+)
+where
 
 import Control.Monad (guard)
 import Data.Aeson (FromJSON, ToJSON)

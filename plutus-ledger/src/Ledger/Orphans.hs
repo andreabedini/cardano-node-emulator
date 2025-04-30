@@ -38,6 +38,7 @@ instance FromHttpApiData PrivateKey where
 
 instance ToHttpApiData LedgerBytes where
   toUrlPiece = JSON.encodeByteString . bytes
+
 instance FromHttpApiData LedgerBytes where
   parseUrlPiece = bimap Text.pack fromBytes . JSON.tryDecode
 
@@ -47,7 +48,9 @@ instance BA.ByteArrayAccess TxId where
   withByteArray (TxId bis) = BA.withByteArray bis
 
 deriving instance Data C.NetworkMagic
+
 deriving instance Data C.NetworkId
+
 deriving instance Generic C.NetworkId
 
 instance Serialise (C.AddressInEra C.ConwayEra) where
@@ -60,6 +63,7 @@ instance Serialise (C.AddressInEra C.ConwayEra) where
       $ C.deserialiseFromRawBytes (C.AsAddressInEra C.AsConwayEra) bs
 
 deriving instance Generic C.PolicyId
+
 deriving instance Generic C.Quantity
 
 -- 'POSIXTime' instances
@@ -84,7 +88,9 @@ instance JSON.ToJSON POSIXTime where
   toJSON (POSIXTime n) = JSON.Number $ scientific n 0
 
 deriving newtype instance Serialise POSIXTime
+
 deriving newtype instance Hashable POSIXTime
 
 deriving anyclass instance JSON.ToJSON ScriptError
+
 deriving anyclass instance JSON.FromJSON ScriptError

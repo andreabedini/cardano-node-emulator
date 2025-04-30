@@ -6,13 +6,6 @@
 
 module Cardano.Node.Socket.Emulator.Mock where
 
-import Control.Concurrent (threadDelay)
-import Control.Monad (forever, void)
-import Control.Monad.IO.Class (liftIO)
-import Data.Time.Clock.POSIX qualified as Time
-import Data.Time.Units (Millisecond, toMicroseconds)
-import Data.Time.Units.Extra ()
-
 import Cardano.Node.Emulator.Internal.Node.TimeSlot (
   SlotConfig,
   currentSlot,
@@ -20,9 +13,15 @@ import Cardano.Node.Emulator.Internal.Node.TimeSlot (
   slotToBeginPOSIXTime,
  )
 import Cardano.Node.Socket.Emulator.Server qualified as Server
+import Control.Concurrent (threadDelay)
+import Control.Monad (forever, void)
+import Control.Monad.IO.Class (liftIO)
+import Data.Time.Clock.POSIX qualified as Time
+import Data.Time.Units (Millisecond, toMicroseconds)
+import Data.Time.Units.Extra ()
 
 {- | Calls 'addBlock' at the start of every slot, causing pending transactions
-  to be validated and added to the chain.
+ to be validated and added to the chain.
 -}
 slotCoordinator
   :: SlotConfig

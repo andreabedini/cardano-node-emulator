@@ -24,7 +24,8 @@ module Cardano.Node.Emulator.Internal.API (
   handleChain,
   processBlock,
   modifySlot,
-) where
+)
+where
 
 import Cardano.Node.Emulator.Internal.Node qualified as E
 import Cardano.Node.Emulator.LogMessages (EmulatorMsg (ChainEvent, GenericMsg))
@@ -65,8 +66,7 @@ data EmulatorState = EmulatorState
 makeLenses 'EmulatorState
 
 data EmulatorError
-  = BalancingError !E.BalancingError
-  | ValidationError !ValidationErrorInPhase
+  = ValidationError !ValidationErrorInPhase
   | ToCardanoError !ToCardanoError
   | CustomError !String
   deriving (Show)
@@ -74,8 +74,11 @@ data EmulatorError
 instance Exception EmulatorError
 
 type EmulatorLogs = Seq (L.LogMessage EmulatorMsg)
+
 type MonadEmulator m = (MonadRWS E.Params EmulatorLogs EmulatorState m, MonadError EmulatorError m)
+
 type EmulatorT m = ExceptT EmulatorError (RWST E.Params EmulatorLogs EmulatorState m)
+
 type EmulatorM = EmulatorT Identity
 
 handleChain :: (MonadEmulator m) => Eff [E.ChainControlEffect, E.ChainEffect] a -> m a

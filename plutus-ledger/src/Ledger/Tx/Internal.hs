@@ -15,28 +15,26 @@ module Ledger.Tx.Internal (
   TxOut (..),
   TxOutRef (..),
   Versioned (..),
-) where
+)
+where
 
+import Cardano.Api (TxBodyContent (txValidityLowerBound))
 import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C
 import Cardano.Binary qualified as C
 import Cardano.Ledger.Alonzo.Genesis ()
 import Codec.Serialise (Serialise, decode, encode)
-
 import Control.Lens qualified as L
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Map (Map)
 import Data.Map qualified as Map
 import GHC.Generics (Generic)
-
 import Ledger.Address (CardanoAddress, cardanoPubKeyHash)
-import Ledger.Contexts.Orphans ()
 import Ledger.Crypto
 import Ledger.DCert.Orphans ()
 import Ledger.Tx.Orphans ()
 import Ledger.Tx.Orphans.V2 ()
-
-import Cardano.Api (TxBodyContent (txValidityLowerBound))
+import Plutus.Script.Utils.Data (datumHash)
 import Plutus.Script.Utils.Scripts
 import PlutusLedgerApi.V1 (Credential, DCert, dataToBuiltinData)
 import PlutusLedgerApi.V1.Scripts
@@ -99,9 +97,7 @@ instance C.ToCBOR TxOut where
   toCBOR = C.toCBOR . C.toShelleyTxOut C.ShelleyBasedEraConway . toCtxUTxOTxOut
 
 instance C.FromCBOR TxOut where
-  fromCBOR = do
-    txout <- C.fromCBOR
-    pure $ TxOut $ C.fromShelleyTxOut C.ShelleyBasedEraConway txout
+  fromCBOR = TxOut . C.fromShelleyTxOut C.ShelleyBasedEraConway <$> C.fromCBOR
 
 instance Serialise TxOut where
   encode = C.toCBOR
@@ -111,6 +107,7 @@ toCtxUTxOTxOut :: TxOut -> C.TxOut C.CtxUTxO C.ConwayEra
 toCtxUTxOTxOut = C.toCtxUTxOTxOut . getTxOut
 
 type ScriptsMap = Map ScriptHash (Versioned Script)
+
 type MintingWitnessesMap = Map MintingPolicyHash (Redeemer, Maybe (Versioned TxOutRef))
 
 -- | Get a hash from the stored TxOutDatum (either directly or by hashing the inlined datum)
@@ -123,7 +120,7 @@ txOutDatumHash (TxOut (C.TxOut _aie _tov tod _rs)) =
       Just $ DatumHash $ PlutusTx.toBuiltin (C.serialiseToRawBytes scriptDataHash)
     C.TxOutDatumInline _era scriptData ->
       Just $ datumHash $ Datum $ dataToBuiltinData $ C.toPlutusData $ C.getScriptData scriptData
-    C.TxOutDatumInTx _era scriptData ->
+    C.TxOutSupplementalDatum _era scriptData ->
       Just $ datumHash $ Datum $ dataToBuiltinData $ C.toPlutusData $ C.getScriptData scriptData
 
 txOutDatum :: forall d. (FromData d) => TxOut -> Maybe d
@@ -135,7 +132,7 @@ txOutDatum (TxOut (C.TxOut _aie _tov tod _rs)) =
       Nothing
     C.TxOutDatumInline _era scriptData ->
       fromData @d $ C.toPlutusData $ C.getScriptData scriptData
-    C.TxOutDatumInTx _era scriptData ->
+    C.TxOutSupplementalDatum _era scriptData ->
       fromData @d $ C.toPlutusData $ C.getScriptData scriptData
 
 cardanoTxOutDatumHash :: C.TxOutDatum C.CtxUTxO C.ConwayEra -> Maybe (C.Hash C.ScriptData)
@@ -180,18 +177,12 @@ lookupScript txScripts hash = Map.lookup hash txScripts
 
 lookupValidator :: ScriptsMap -> ValidatorHash -> Maybe (Versioned Validator)
 lookupValidator txScripts = (fmap . fmap) Validator . lookupScript txScripts . toScriptHash
-  where
-    toScriptHash (ValidatorHash b) = ScriptHash b
 
 lookupMintingPolicy :: ScriptsMap -> MintingPolicyHash -> Maybe (Versioned MintingPolicy)
 lookupMintingPolicy txScripts = (fmap . fmap) MintingPolicy . lookupScript txScripts . toScriptHash
-  where
-    toScriptHash (MintingPolicyHash b) = ScriptHash b
 
 lookupStakeValidator :: ScriptsMap -> StakeValidatorHash -> Maybe (Versioned StakeValidator)
 lookupStakeValidator txScripts = (fmap . fmap) StakeValidator . lookupScript txScripts . toScriptHash
-  where
-    toScriptHash (StakeValidatorHash b) = ScriptHash b
 
 emptyTxBodyContent :: C.TxBodyContent C.BuildTx C.ConwayEra
 emptyTxBodyContent =
@@ -216,4 +207,6 @@ emptyTxBodyContent =
     , txUpdateProposal = C.TxUpdateProposalNone
     , txProposalProcedures = Nothing
     , txVotingProcedures = Nothing
+    , txCurrentTreasuryValue = Nothing
+    , txTreasuryDonation = Nothing
     }

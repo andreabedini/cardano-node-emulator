@@ -1,5 +1,5 @@
 {- | Encoding and decoding of 'ByteString' and serialisable values
-  as base16 encoded JSON strings
+ as base16 encoded JSON strings
 -}
 module Data.Aeson.Extras (
   encodeByteString,
@@ -8,7 +8,8 @@ module Data.Aeson.Extras (
   decodeSerialise,
   tryDecode,
   JSONViaSerialise (..),
-) where
+)
+where
 
 import Codec.CBOR.Write qualified as Write
 import Codec.Serialise (Serialise, deserialiseOrFail, encode)

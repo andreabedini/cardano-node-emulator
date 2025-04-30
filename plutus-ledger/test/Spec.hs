@@ -19,9 +19,9 @@ import Ledger (Slot (Slot))
 import Ledger.Tx.CardanoAPI (CardanoBuildTx (CardanoBuildTx), CardanoTx (CardanoTx))
 import Ledger.Tx.CardanoAPI qualified as CardanoAPI
 import Ledger.Tx.CardanoAPISpec qualified
-import Plutus.Script.Utils.Ada qualified as Ada
-import Plutus.Script.Utils.Value qualified as Value hiding (scale)
+import Plutus.Script.Utils.Value qualified as Value
 import PlutusLedgerApi.V1.Interval qualified as Interval
+import PlutusLedgerApi.V1.Value qualified as Value
 import Test.Gen.Cardano.Api.Typed qualified as Gen
 import Test.Tasty (TestTree, defaultMain, testGroup)
 import Test.Tasty.HUnit (testCase)
@@ -50,16 +50,17 @@ tests =
         ( [ testPropertyNamed
               "TokenName looks like escaped bytestring ToJSON/FromJSON"
               "tokenname_escaped_roundtrip"
-              (jsonRoundTrip . pure $ ("\NUL0xc0ffee" :: Value.TokenName))
+              (jsonRoundTrip . pure $ Value.TokenName "\NUL0xc0ffee")
           ]
             ++ ( let vlJson :: BSL.ByteString
-                     vlJson = "{\"getValue\":[[{\"unCurrencySymbol\":\"ab01ff\"},[[{\"unTokenName\":\"myToken\"},50]]]]}"
-                     vlValue = Value.singleton "ab01ff" "myToken" 50
+                     vlJson =
+                      "{\"getValue\":[[{\"unCurrencySymbol\":\"6d7943757272656e637953796d626f6c\"},[[{\"unTokenName\":\"myToken\"},50]]]]}"
+                     vlValue = Value.singleton (Value.CurrencySymbol "myCurrencySymbol") (Value.TokenName "myToken") 50
                   in byteStringJson vlJson vlValue
                )
             ++ ( let vlJson :: BSL.ByteString
                      vlJson = "{\"getValue\":[[{\"unCurrencySymbol\":\"\"},[[{\"unTokenName\":\"\"},50]]]]}"
-                     vlValue = Ada.lovelaceValueOf 50
+                     vlValue = Value.lovelace 50
                   in byteStringJson vlJson vlValue
                )
         )

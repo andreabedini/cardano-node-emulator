@@ -4,7 +4,8 @@ module Ledger (
   NetworkId,
   Credential,
   StakingCredential,
-) where
+)
+where
 
 import Cardano.Api (NetworkId)
 import Ledger.Address as Export

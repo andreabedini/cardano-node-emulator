@@ -34,7 +34,8 @@ module Ledger.CardanoWallet (
   knownPaymentKeys,
   knownPaymentPublicKeys,
   knownPaymentPrivateKeys,
-) where
+)
+where
 
 import Cardano.Crypto.Wallet qualified as Crypto
 import Codec.Serialise (serialise)
@@ -77,10 +78,13 @@ newtype MockPrivateKey = MockPrivateKey {unMockPrivateKey :: Crypto.XPrv}
 
 instance Show MockPrivateKey where
   show = T.unpack . encodeByteString . Crypto.unXPrv . unMockPrivateKey
+
 instance Eq MockPrivateKey where
   (MockPrivateKey l) == (MockPrivateKey r) = Crypto.unXPrv l == Crypto.unXPrv r
+
 instance Ord MockPrivateKey where
   compare (MockPrivateKey l) (MockPrivateKey r) = compare (Crypto.unXPrv l) (Crypto.unXPrv r)
+
 instance Hashable MockPrivateKey where
   hashWithSalt i = hashWithSalt i . Crypto.unXPrv . unMockPrivateKey
 
@@ -140,7 +144,7 @@ toWalletNumber MockWallet{mwWalletId = w} =
     $ findIndex ((==) w . mwWalletId) knownMockWallets
 
 {- | The wallets used in mockchain simulations by default. There are
-  ten wallets by default.
+ ten wallets by default.
 -}
 knownMockWallets :: [MockWallet]
 knownMockWallets = fromWalletNumber . WalletNumber <$> [1 .. 10]

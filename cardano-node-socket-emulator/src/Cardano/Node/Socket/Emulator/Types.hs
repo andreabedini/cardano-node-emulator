@@ -21,7 +21,7 @@ module Cardano.Node.Socket.Emulator.Types where
 import Cardano.Api (Value)
 import Cardano.Chain.Slotting (EpochSlots (..))
 import Cardano.Ledger.Block qualified as CL
-import Cardano.Ledger.Era qualified as CL
+import Cardano.Ledger.Core qualified as CL
 import Cardano.Ledger.Shelley.API (Nonce (NeutralNonce), extractTx, unsafeMakeValidated)
 import Cardano.Node.Emulator.API (
   EmulatorError,
@@ -35,6 +35,8 @@ import Cardano.Node.Emulator.API (
 import Cardano.Node.Emulator.Internal.Node.Chain qualified as EC
 import Cardano.Node.Emulator.Internal.Node.Params (Params)
 import Cardano.Node.Emulator.Internal.Node.Validation (getSlot)
+import Cardano.Protocol.TPraos.BHeader
+import Cardano.Protocol.TPraos.OCert (KESPeriod (..))
 import Codec.Serialise (DeserialiseFailure)
 import Codec.Serialise qualified as CBOR
 import Control.Concurrent (MVar, modifyMVar_, putMVar, readMVar, takeMVar)
@@ -69,7 +71,9 @@ import Ledger (Block, CardanoTx, OnChainTx (..))
 import Ledger.Address (CardanoAddress)
 import Ledger.CardanoWallet
 import Ledger.Test (testNetworkMagic)
-import Network.TypedProtocol.Codec (Codec)
+import Network.Mux.Types
+import Network.TypedProtocol.Codec.CBOR (Codec)
+import Network.TypedProtocol.Stateful.Codec qualified as TP (Codec)
 import Ouroboros.Consensus.Byron.Ledger qualified as Byron
 import Ouroboros.Consensus.Cardano.Block (CardanoBlock, CodecConfig (..))
 import Ouroboros.Consensus.Cardano.Block qualified as OC
@@ -104,9 +108,6 @@ import Ouroboros.Network.Protocol.LocalTxSubmission.Type qualified as TxSubmissi
 import Ouroboros.Network.Util.ShowProxy
 import Prettyprinter (Pretty, pretty, viaShow, (<+>))
 import Prettyprinter.Extras (PrettyShow (PrettyShow))
-
-import Cardano.Protocol.TPraos.BHeader
-import Cardano.Protocol.TPraos.OCert (KESPeriod (..))
 import Test.Cardano.Ledger.Common
 import Test.Cardano.Ledger.Shelley.Constants (defaultConstants)
 import Test.Cardano.Ledger.Shelley.Generator.Presets (coreNodeKeys)
@@ -308,7 +309,7 @@ doNothingResponderProtocol =
 is what the cardano main and testnet uses. Only applies to the Byron era.
 -}
 epochSlots :: EpochSlots
-epochSlots = EpochSlots 21600
+epochSlots = EpochSlots 21_600
 
 codecVersion :: BlockNodeToClientVersion (CardanoBlock StandardCrypto)
 codecVersion = versionMap Map.! nodeToClientVersion
@@ -336,7 +337,7 @@ nodeToClientCodecs =
   clientCodecs codecConfig codecVersion nodeToClientVersion
 
 {- | These codecs are currently used in the mock nodes and will
-  probably soon get removed as the mock nodes are phased out.
+probably soon get removed as the mock nodes are phased out.
 -}
 chainSyncCodec
   :: (block ~ CardanoBlock StandardCrypto)
@@ -358,9 +359,10 @@ txSubmissionCodec = cTxSubmissionCodec nodeToClientCodecs
 
 stateQueryCodec
   :: (block ~ CardanoBlock StandardCrypto)
-  => Codec
+  => TP.Codec
       (StateQuery.LocalStateQuery block (Point block) (Query block))
       DeserialiseFailure
+      StateQuery.State
       IO
       BSL.ByteString
 stateQueryCodec = cStateQueryCodec nodeToClientCodecs
@@ -369,7 +371,7 @@ toCardanoBlock
   :: Ouroboros.Tip (CardanoBlock StandardCrypto) -> Block -> IO (CardanoBlock StandardCrypto)
 toCardanoBlock Ouroboros.TipGenesis _ = error "toCardanoBlock: TipGenesis not supported"
 toCardanoBlock (Ouroboros.Tip curSlotNo _ curBlockNo) block = do
-  prevHash <- generate (arbitrary :: Gen (HashHeader (OC.EraCrypto (OC.ConwayEra StandardCrypto))))
+  prevHash <- generate (arbitrary :: Gen HashHeader)
   let allPoolKeys = snd $ head $ coreNodeKeys defaultConstants
       kesPeriod = 1
       keyRegKesPeriod = 1

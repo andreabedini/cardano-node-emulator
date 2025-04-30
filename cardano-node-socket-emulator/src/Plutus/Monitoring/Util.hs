@@ -16,7 +16,8 @@ module Plutus.Monitoring.Util (
   runLogEffects,
   convertLog,
   toSeverity,
-) where
+)
+where
 
 import Cardano.BM.Configuration.Model qualified as CM
 import Cardano.BM.Data.Counter
@@ -88,7 +89,7 @@ convertLog :: (a -> b) -> Trace m b -> Trace m a
 convertLog f = contramap (second (fmap f))
 
 {- | Handle the 'LogObserve' effect using the 'Cardano.BM.Observer.Monadic'
-  observer functions
+ observer functions
 -}
 handleObserveTrace
   :: forall effs m a

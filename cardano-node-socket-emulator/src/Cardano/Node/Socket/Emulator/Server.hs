@@ -11,6 +11,36 @@
 
 module Cardano.Node.Socket.Emulator.Server (ServerHandler, runServerNode, processBlock, modifySlot, addTx, processChainEffects) where
 
+import Cardano.Api qualified as C
+import Cardano.Api.Shelley qualified as C
+import Cardano.BM.Data.Trace (Trace)
+import Cardano.Node.Emulator.API qualified as E
+import Cardano.Node.Emulator.Internal.API (EmulatorMsg, EmulatorT)
+import Cardano.Node.Emulator.Internal.API qualified as E
+import Cardano.Node.Emulator.Internal.Node.Chain qualified as Chain
+import Cardano.Node.Emulator.Internal.Node.Validation qualified as Validation
+import Cardano.Node.Socket.Emulator.Query (handleQuery)
+import Cardano.Node.Socket.Emulator.Types (
+  AppState (..),
+  BlockId (BlockId),
+  SocketEmulatorState (..),
+  Tip,
+  blockId,
+  chainSyncCodec,
+  doNothingResponderProtocol,
+  emulatorState,
+  getChannel,
+  getTip,
+  nodeToClientVersion,
+  nodeToClientVersionData,
+  runChainEffects,
+  setTip,
+  socketEmulatorState,
+  stateQueryCodec,
+  toCardanoBlock,
+  txSubmissionCodec,
+ )
+import Cardano.Slotting.Slot (SlotNo (..), WithOrigin (..))
 import Control.Concurrent (
   MVar,
   ThreadId,
@@ -53,11 +83,10 @@ import Data.List (intersect)
 import Data.Maybe (listToMaybe)
 import Data.SOP.Strict (NS (S, Z))
 import Data.Void (Void)
-
-import Cardano.BM.Data.Trace (Trace)
-import Cardano.Slotting.Slot (SlotNo (..), WithOrigin (..))
 import Ledger (Block, CardanoTx (..), Slot (..))
+import Network.Mux.Types (Mode (ResponderMode))
 import Ouroboros.Consensus.Cardano.Block (CardanoBlock)
+import Ouroboros.Consensus.Cardano.Block qualified as Consensus
 import Ouroboros.Consensus.HardFork.Combinator qualified as Consensus
 import Ouroboros.Consensus.Ledger.Query (Query (..))
 import Ouroboros.Consensus.Ledger.SupportsMempool (ApplyTxErr)
@@ -86,41 +115,12 @@ import Ouroboros.Network.Protocol.Handshake.Codec
 import Ouroboros.Network.Protocol.Handshake.Version
 import Ouroboros.Network.Protocol.LocalStateQuery.Server qualified as Query
 import Ouroboros.Network.Protocol.LocalStateQuery.Server qualified as StateQuery
+import Ouroboros.Network.Protocol.LocalStateQuery.Type (State (StateIdle))
 import Ouroboros.Network.Protocol.LocalTxSubmission.Server qualified as TxSubmission
 import Ouroboros.Network.Protocol.LocalTxSubmission.Type qualified as TxSubmission
 import Ouroboros.Network.Snocket
 import Ouroboros.Network.Socket
 import Plutus.Monitoring.Util qualified as LM
-
-import Cardano.Api qualified as C
-import Cardano.Api.InMode qualified as C
-
-import Cardano.Node.Emulator.API qualified as E
-import Cardano.Node.Emulator.Internal.API (EmulatorMsg, EmulatorT)
-import Cardano.Node.Emulator.Internal.API qualified as E
-import Cardano.Node.Emulator.Internal.Node.Chain qualified as Chain
-import Cardano.Node.Emulator.Internal.Node.Validation qualified as Validation
-import Cardano.Node.Socket.Emulator.Query (handleQuery)
-import Cardano.Node.Socket.Emulator.Types (
-  AppState (..),
-  BlockId (BlockId),
-  SocketEmulatorState (..),
-  Tip,
-  blockId,
-  chainSyncCodec,
-  doNothingResponderProtocol,
-  emulatorState,
-  getChannel,
-  getTip,
-  nodeToClientVersion,
-  nodeToClientVersionData,
-  runChainEffects,
-  setTip,
-  socketEmulatorState,
-  stateQueryCodec,
-  toCardanoBlock,
-  txSubmissionCodec,
- )
 
 data CommandChannel = CommandChannel
   { ccCommand :: TQueue ServerCommand
@@ -128,13 +128,13 @@ data CommandChannel = CommandChannel
   }
 
 {- | Clone the original channel for each connected client, then use
-     this wrapper to make sure that no data is consumed from the
-     original channel.
+    this wrapper to make sure that no data is consumed from the
+    original channel.
 -}
 newtype LocalChannel = LocalChannel (TChan Block)
 
 {- | A handler used to pass around the path to the server
-     and channels used for controlling the server.
+    and channels used for controlling the server.
 -}
 data ServerHandler = ServerHandler
   { shSocketPath :: FilePath
@@ -144,8 +144,8 @@ data ServerHandler = ServerHandler
   }
 
 {- | The commands that control the server. This API is not part of the client
-     interface, and in order to call them directly you will need access to the
-     returned ServerHandler
+    interface, and in order to call them directly you will need access to the
+    returned ServerHandler
 -}
 data ServerCommand
   = -- This command will add a new block by processing
@@ -163,7 +163,7 @@ instance Show ServerCommand where
     AddTx t -> "AddTx " <> show t
 
 {- | The response from the server. Can be used for the information
-     passed back, or for synchronisation.
+    passed back, or for synchronisation.
 -}
 data ServerResponse
   = -- A block was added. We are using this for synchronization.
@@ -251,7 +251,7 @@ handleCommand trace CommandChannel{ccCommand, ccResponse} mvAppState =
     process = processChainEffects trace mvAppState
 
 {- | Start the server in a new thread, and return a server handler
-     used to control the server
+    used to control the server
 -}
 runServerNode
   :: (MonadIO m)
@@ -556,10 +556,11 @@ stateQuery
   -> RunMiniProtocolWithMinimalCtx 'ResponderMode LocalAddress LBS.ByteString IO Void ()
 stateQuery mvChainState =
   ResponderProtocolOnly $
-    mkMiniProtocolCbFromPeer $
+    mkMiniProtocolCbFromPeerSt $
       const
         ( nullTracer
         , stateQueryCodec
+        , StateIdle
         , Query.localStateQueryServerPeer
             (stateQueryServer mvChainState)
         )
@@ -605,16 +606,41 @@ txSubmissionServer
   -> TxSubmission.LocalTxSubmissionServer (Shelley.GenTx block) (ApplyTxErr block) IO ()
 txSubmissionServer state =
   TxSubmission.LocalTxSubmissionServer
-    { TxSubmission.recvMsgSubmitTx = \tx -> (,txSubmissionServer state) <$> submitTx state tx
+    { TxSubmission.recvMsgSubmitTx = fmap (,txSubmissionServer state) . submitTx state
     , TxSubmission.recvMsgDone = ()
     }
+
+-- Remove if Cardano.Api.Internal.InMode is exposed again
+fromConsensusGenTx
+  :: () => (Consensus.CardanoBlock StandardCrypto ~ block) => Consensus.GenTx block -> C.TxInMode
+fromConsensusGenTx = \case
+  Consensus.HardForkGenTx (Consensus.OneEraGenTx (Z tx')) ->
+    C.TxInByronSpecial tx'
+  Consensus.HardForkGenTx (Consensus.OneEraGenTx (S (Z tx'))) ->
+    let Shelley.ShelleyTx _txid shelleyEraTx = tx'
+     in C.TxInMode C.ShelleyBasedEraShelley (C.ShelleyTx C.ShelleyBasedEraShelley shelleyEraTx)
+  Consensus.HardForkGenTx (Consensus.OneEraGenTx (S (S (Z tx')))) ->
+    let Shelley.ShelleyTx _txid shelleyEraTx = tx'
+     in C.TxInMode C.ShelleyBasedEraAllegra (C.ShelleyTx C.ShelleyBasedEraAllegra shelleyEraTx)
+  Consensus.HardForkGenTx (Consensus.OneEraGenTx (S (S (S (Z tx'))))) ->
+    let Shelley.ShelleyTx _txid shelleyEraTx = tx'
+     in C.TxInMode C.ShelleyBasedEraMary (C.ShelleyTx C.ShelleyBasedEraMary shelleyEraTx)
+  Consensus.HardForkGenTx (Consensus.OneEraGenTx (S (S (S (S (Z tx')))))) ->
+    let Shelley.ShelleyTx _txid shelleyEraTx = tx'
+     in C.TxInMode C.ShelleyBasedEraAlonzo (C.ShelleyTx C.ShelleyBasedEraAlonzo shelleyEraTx)
+  Consensus.HardForkGenTx (Consensus.OneEraGenTx (S (S (S (S (S (Z tx'))))))) ->
+    let Shelley.ShelleyTx _txid shelleyEraTx = tx'
+     in C.TxInMode C.ShelleyBasedEraBabbage (C.ShelleyTx C.ShelleyBasedEraBabbage shelleyEraTx)
+  Consensus.HardForkGenTx (Consensus.OneEraGenTx (S (S (S (S (S (S (Z tx')))))))) ->
+    let Shelley.ShelleyTx _txid shelleyEraTx = tx'
+     in C.TxInMode C.ShelleyBasedEraConway (C.ShelleyTx C.ShelleyBasedEraConway shelleyEraTx)
 
 submitTx
   :: (block ~ CardanoBlock StandardCrypto)
   => MVar AppState
   -> Shelley.GenTx block
   -> IO (TxSubmission.SubmitResult (ApplyTxErr block))
-submitTx state tx = case C.fromConsensusGenTx tx of
+submitTx state tx = case fromConsensusGenTx tx of
   C.TxInMode C.ShelleyBasedEraConway shelleyTx -> do
     AppState
       (SocketEmulatorState (E.EmulatorState chainState _ _) _ _)

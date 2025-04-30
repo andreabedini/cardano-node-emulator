@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -19,8 +20,6 @@ module Cardano.Node.Emulator.Internal.Node.Params (
   networkIdL,
   emulatorPParamsL,
   emulatorPParams,
-  pProtocolParams,
-  pParamsFromProtocolParams,
   ledgerProtocolParameters,
   increaseTransactionLimits,
   increaseTransactionLimits',
@@ -38,21 +37,18 @@ module Cardano.Node.Emulator.Internal.Node.Params (
   testnet,
   emulatorGlobals,
   emulatorEraHistory,
-) where
+)
+where
 
 import Cardano.Api qualified as C
-import Cardano.Api.NetworkId qualified as C
 import Cardano.Api.Shelley qualified as C
 import Cardano.Ledger.Alonzo.Genesis qualified as C
 import Cardano.Ledger.Alonzo.PParams qualified as C
-import Cardano.Ledger.Alonzo.Scripts qualified as Alonzo
 import Cardano.Ledger.Api.PParams qualified as C
 import Cardano.Ledger.Api.Transition qualified as C
-import Cardano.Ledger.BaseTypes (ProtVer (ProtVer), boundRational)
+import Cardano.Ledger.BaseTypes (ProtVer (ProtVer), boundRational, unNonZero)
 import Cardano.Ledger.Binary.Version (Version, natVersion)
 import Cardano.Ledger.Conway (ConwayEra)
-import Cardano.Ledger.Crypto (StandardCrypto)
-import Cardano.Ledger.Plutus.CostModels (mkCostModels)
 import Cardano.Ledger.Plutus.ExUnits (ExUnits (ExUnits), Prices (Prices))
 import Cardano.Ledger.Shelley.API (Coin (Coin), Globals, mkShelleyGlobals)
 import Cardano.Ledger.Shelley.API qualified as C.Ledger
@@ -72,29 +68,26 @@ import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
 import Data.Aeson qualified as JSON
 import Data.Aeson.Types (prependFailure, typeMismatch)
 import Data.Default (Default (def))
-import Data.Map qualified as Map
 import Data.Maybe (fromJust)
 import Data.Ratio ((%))
 import Data.SOP (K (K))
 import Data.SOP.Counting qualified as Ouroboros
 import Data.SOP.NonEmpty qualified as Ouroboros
 import Data.SOP.Strict (NP (Nil, (:*)))
-import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import GHC.Natural (Natural)
 import GHC.Word (Word32)
 import Ledger.Test (testNetworkMagic, testnet)
 import Ouroboros.Consensus.Block (GenesisWindow (GenesisWindow))
 import Ouroboros.Consensus.HardFork.History qualified as Ouroboros
-import Plutus.Script.Utils.Scripts (Language (PlutusV1))
-import PlutusCore.Evaluation.Machine.ExBudgetingDefaults (defaultCostModelParams)
 import PlutusLedgerApi.V1 (POSIXTime (POSIXTime, getPOSIXTime))
 import Prettyprinter (Pretty (pretty), viaShow, vsep, (<+>))
 
 -- | The default era for the emulator
-type EmulatorEra = ConwayEra StandardCrypto
+type EmulatorEra = ConwayEra
 
 type PParams = C.PParams EmulatorEra
+
 type TransitionConfig = C.TransitionConfig EmulatorEra
 
 data Params = Params
@@ -109,6 +102,7 @@ data Params = Params
 instance ToJSON C.NetworkId where
   toJSON C.Mainnet = JSON.String "Mainnet"
   toJSON (C.Testnet (C.NetworkMagic n)) = JSON.Number $ fromIntegral n
+
 instance FromJSON C.NetworkId where
   parseJSON (JSON.String "Mainnet") = pure C.Mainnet
   parseJSON (JSON.Number n) = pure $ C.Testnet $ C.NetworkMagic $ truncate n
@@ -116,6 +110,7 @@ instance FromJSON C.NetworkId where
     prependFailure "parsing NetworkId failed, " (typeMismatch "'Mainnet' or Number" v)
 
 deriving newtype instance ToJSON C.NetworkMagic
+
 deriving newtype instance FromJSON C.NetworkMagic
 
 makeLensesFor
@@ -139,12 +134,6 @@ instance Pretty Params where
 -- | Convert `Params` to cardano-ledger `PParams`
 emulatorPParams :: Params -> PParams
 emulatorPParams = pEmulatorPParams
-
-pProtocolParams :: Params -> C.ProtocolParameters
-pProtocolParams p = C.fromLedgerPParams C.ShelleyBasedEraConway $ emulatorPParams p
-
-pParamsFromProtocolParams :: C.ProtocolParameters -> PParams
-pParamsFromProtocolParams = either (error . show) id . C.toLedgerPParams C.ShelleyBasedEraConway
 
 ledgerProtocolParameters :: Params -> C.LedgerProtocolParameters C.ConwayEra
 ledgerProtocolParameters = C.LedgerProtocolParameters . emulatorPParams
@@ -175,7 +164,7 @@ defaultConfig =
     emulatorAlonzoGenesisDefaults
     emulatorConwayGenesisDefaults
 
-emulatorShelleyGenesisDefaults :: C.ShelleyGenesis StandardCrypto
+emulatorShelleyGenesisDefaults :: C.ShelleyGenesis
 emulatorShelleyGenesisDefaults =
   C.shelleyGenesisDefaults
     { C.sgNetworkMagic = case testNetworkMagic of C.NetworkMagic nm -> nm
@@ -188,30 +177,18 @@ emulatorShelleyGenesisDefaults =
           & C.ppKeyDepositL .~ Coin 2_000_000
     }
 
+instance MonadFail (Either String) where
+  fail = Left
+
 emulatorAlonzoGenesisDefaults :: C.AlonzoGenesis
 emulatorAlonzoGenesisDefaults =
-  C.alonzoGenesisDefaults
+  (C.alonzoGenesisDefaults C.ConwayEra)
     { C.agPrices =
         Prices (fromJust $ boundRational (577 % 10_000)) (fromJust $ boundRational (721 % 10_000_000))
     , C.agMaxTxExUnits = ExUnits 14_000_000 10_000_000_000
-    , C.agCostModels = mkCostModels costModels
     }
-  where
-    costModel lang = fromJust $ defaultCostModelParams >>= Alonzo.costModelFromMap lang . projectLangParams lang
-    costModels = Map.fromList $ map (\lang -> (lang, costModel lang)) [minBound .. maxBound]
-    projectLangParams lang m =
-      Map.restrictKeys
-        (Map.mapKeys (mapParamNames lang) m)
-        (Set.fromList (Alonzo.costModelParamNames lang))
-    mapParamNames PlutusV1 "blake2b_256-cpu-arguments-intercept" = "blake2b-cpu-arguments-intercept"
-    mapParamNames PlutusV1 "blake2b_256-cpu-arguments-slope" = "blake2b-cpu-arguments-slope"
-    mapParamNames PlutusV1 "blake2b_256-memory-arguments" = "blake2b-memory-arguments"
-    mapParamNames PlutusV1 "verifyEd25519Signature-cpu-arguments-intercept" = "verifySignature-cpu-arguments-intercept"
-    mapParamNames PlutusV1 "verifyEd25519Signature-cpu-arguments-slope" = "verifySignature-cpu-arguments-slope"
-    mapParamNames PlutusV1 "verifyEd25519Signature-memory-arguments" = "verifySignature-memory-arguments"
-    mapParamNames _ name = name
 
-emulatorConwayGenesisDefaults :: C.ConwayGenesis StandardCrypto
+emulatorConwayGenesisDefaults :: C.ConwayGenesis
 emulatorConwayGenesisDefaults = C.conwayGenesisDefaults
 
 paramsFromConfig :: TransitionConfig -> Params
@@ -224,7 +201,7 @@ paramsFromConfig tc =
               getPOSIXTime $ nominalDiffTimeToPOSIXTime $ C.Ledger.fromNominalDiffTimeMicro $ C.sgSlotLength sg
           }
     , pEmulatorPParams = tc ^. C.tcInitialPParamsG
-    , pNetworkId = C.fromShelleyNetwork (C.sgNetworkId sg) (C.NetworkMagic $ C.sgNetworkMagic sg)
+    , pNetworkId = C.Testnet (C.NetworkMagic $ C.sgNetworkMagic sg)
     , pEpochSize = C.sgEpochLength sg
     , pConfig = tc
     }
@@ -236,7 +213,7 @@ slotLength :: Params -> SlotLength
 slotLength Params{pSlotConfig} = mkSlotLength $ posixTimeToNominalDiffTime $ POSIXTime $ scSlotLength pSlotConfig
 
 keptBlocks :: Params -> Integer
-keptBlocks Params{pConfig} = fromIntegral $ C.sgSecurityParam (pConfig ^. C.tcShelleyGenesisL)
+keptBlocks Params{pConfig} = fromIntegral $ unNonZero $ C.sgSecurityParam (pConfig ^. C.tcShelleyGenesisL)
 
 -- | A sensible default 'EpochSize' value for the emulator
 emulatorEpochSize :: EpochSize
@@ -248,7 +225,6 @@ emulatorGlobals params@Params{pEpochSize, pConfig} =
   mkShelleyGlobals
     (pConfig ^. C.tcShelleyGenesisL)
     (fixedEpochInfo pEpochSize (slotLength params))
-    emulatorProtocolMajorVersion
 
 emulatorGenesisWindow :: GenesisWindow
 emulatorGenesisWindow = GenesisWindow window

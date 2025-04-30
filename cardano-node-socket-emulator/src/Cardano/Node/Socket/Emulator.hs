@@ -6,10 +6,11 @@ module Cardano.Node.Socket.Emulator (
   main,
   prettyTrace,
   startTestnet,
-) where
+)
+where
 
 import Cardano.Api (NetworkId, NetworkMagic (NetworkMagic), toNetworkMagic)
-import Cardano.Api.Genesis (ShelleyGenesis (sgNetworkMagic, sgSlotLength))
+import Cardano.Api.Internal.Genesis (ShelleyGenesis (sgNetworkMagic, sgSlotLength))
 import Cardano.BM.Trace (Trace, stdoutTrace)
 import Cardano.Node.Emulator.Internal.Node (SlotConfig (SlotConfig, scSlotLength, scSlotZeroTime))
 import Cardano.Node.Emulator.Internal.Node.Params (keptBlocks, pSlotConfig)
@@ -78,11 +79,9 @@ prettyTrace = LM.convertLog (renderStrict . layoutPretty defaultLayoutOptions . 
 
 startTestnet :: FilePath -> Integer -> NetworkId -> IO ()
 startTestnet socketPath slotLength networkId =
-  let
-    updateShelley config =
-      config
-        { sgSlotLength = fromIntegral slotLength / 1000.0
-        , sgNetworkMagic = case toNetworkMagic networkId of NetworkMagic nm -> nm
-        }
-   in
-    core prettyTrace def{nscSocketPath = socketPath} updateShelley
+  let updateShelley config =
+        config
+          { sgSlotLength = fromIntegral slotLength / 1000.0
+          , sgNetworkMagic = case toNetworkMagic networkId of NetworkMagic nm -> nm
+          }
+   in core prettyTrace def{nscSocketPath = socketPath} updateShelley

@@ -23,7 +23,8 @@ module Cardano.Node.Emulator.Internal.Node.TimeSlot (
   nominalDiffTimeToPOSIXTime,
   posixTimeToNominalDiffTime,
   beginningOfTime,
-) where
+)
+where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Default (Default (def))

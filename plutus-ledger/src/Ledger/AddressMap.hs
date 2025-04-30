@@ -21,8 +21,10 @@ module Ledger.AddressMap (
   updateAddresses,
   updateAllAddresses,
   fromChain,
-) where
+)
+where
 
+import Cardano.Api qualified as C
 import Control.Lens (
   At (..),
   Index,
@@ -44,8 +46,6 @@ import Data.Map qualified as Map
 import Data.Maybe (mapMaybe)
 import Data.Set qualified as Set
 import GHC.Generics (Generic)
-
-import Cardano.Api qualified as C
 import Ledger.Address (CardanoAddress)
 import Ledger.Blockchain (Blockchain, OnChainTx, consumableInputs, outputsProduced, unOnChain)
 import Ledger.Tx (CardanoTx, TxOut (..), txOutAddress, txOutValue)
@@ -71,6 +71,7 @@ instance Monoid AddressMap where
   mempty = AddressMap Map.empty
 
 type instance Index AddressMap = CardanoAddress
+
 type instance IxValue AddressMap = Map C.TxIn (CardanoTx, TxOut)
 
 instance Ixed AddressMap where
@@ -87,7 +88,7 @@ fundsAt :: CardanoAddress -> Lens' AddressMap UtxoMap
 fundsAt addr = at addr . non mempty
 
 {- | Add an address with no unspent outputs to a map. If the address already
-  exists, do nothing.
+ exists, do nothing.
 -}
 addAddress :: CardanoAddress -> AddressMap -> AddressMap
 addAddress adr (AddressMap mp) = AddressMap $ Map.alter upd adr mp

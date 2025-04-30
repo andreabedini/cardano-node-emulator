@@ -31,11 +31,10 @@ module Ledger.Address (
   xprvToStakingCredential,
   xprvToStakePubKey,
   xprvToStakePubKeyHash,
-  mkValidatorCardanoAddress,
-) where
+)
+where
 
 import Cardano.Api qualified as C
-import Cardano.Api.Byron qualified as C
 import Cardano.Api.Shelley qualified as C
 import Cardano.Chain.Common (addrToBase58)
 import Cardano.Crypto.Wallet qualified as Crypto
@@ -50,9 +49,8 @@ import Ledger.Scripts (
   ScriptHash (..),
   StakeValidatorHash (..),
   ValidatorHash (..),
-  mkValidatorCardanoAddress,
  )
-import PlutusLedgerApi.V1.Address as Export hiding (pubKeyHashAddress)
+import PlutusLedgerApi.V1.Address as Export hiding (pubKeyHashAddress, toScriptHash)
 import PlutusLedgerApi.V1.Credential (
   Credential (PubKeyCredential, ScriptCredential),
   StakingCredential (StakingHash),
@@ -65,6 +63,7 @@ import Prettyprinter (Pretty)
 type CardanoAddress = C.AddressInEra C.ConwayEra
 
 instance ToJSONKey (C.AddressInEra C.ConwayEra)
+
 instance FromJSONKey (C.AddressInEra C.ConwayEra)
 
 cardanoAddressCredential :: C.AddressInEra era -> Credential
@@ -122,6 +121,7 @@ newtype PaymentPubKey = PaymentPubKey {unPaymentPubKey :: PubKey}
   deriving newtype
     (PlutusTx.Eq, PlutusTx.Ord, Serialise, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData)
   deriving (Show, Pretty) via PubKey
+
 makeLift ''PaymentPubKey
 
 xprvToPaymentPubKey :: Crypto.XPrv -> PaymentPubKey
@@ -140,6 +140,7 @@ newtype PaymentPubKeyHash = PaymentPubKeyHash {unPaymentPubKeyHash :: PubKeyHash
     , PlutusTx.UnsafeFromData
     )
   deriving (Show, Pretty) via PubKeyHash
+
 makeLift ''PaymentPubKeyHash
 
 xprvToPaymentPubKeyHash :: Crypto.XPrv -> PaymentPubKeyHash
@@ -153,6 +154,7 @@ newtype StakePubKey = StakePubKey {unStakePubKey :: PubKey}
   deriving newtype
     (PlutusTx.Eq, PlutusTx.Ord, Serialise, PlutusTx.ToData, PlutusTx.FromData, PlutusTx.UnsafeFromData)
   deriving (Show, Pretty) via PubKey
+
 makeLift ''StakePubKey
 
 xprvToStakePubKey :: Crypto.XPrv -> StakePubKey
@@ -171,6 +173,7 @@ newtype StakePubKeyHash = StakePubKeyHash {unStakePubKeyHash :: PubKeyHash}
     , PlutusTx.UnsafeFromData
     )
   deriving (Show, Pretty) via PubKeyHash
+
 makeLift ''StakePubKeyHash
 
 xprvToStakePubKeyHash :: Crypto.XPrv -> StakePubKeyHash

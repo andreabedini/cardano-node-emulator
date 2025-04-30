@@ -15,8 +15,10 @@ module Ledger.Blockchain (
   onChainTxIsValid,
   consumableInputs,
   outputsProduced,
-) where
+)
+where
 
+import Cardano.Api qualified as C
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson qualified as JSON
 import Data.Aeson.Extras qualified as JSON
@@ -26,9 +28,6 @@ import Data.Map (Map)
 import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8')
 import GHC.Generics (Generic)
-import Prettyprinter (Pretty (..))
-
-import Cardano.Api qualified as C
 import Ledger.Index.Internal (OnChainTx (..), eitherTx, unOnChain)
 import Ledger.Tx (
   TxOut,
@@ -38,6 +37,7 @@ import Ledger.Tx (
   getCardanoTxProducedReturnCollateral,
  )
 import PlutusLedgerApi.V1.Scripts
+import Prettyprinter (Pretty (..))
 
 -- | Block identifier (usually a hash)
 newtype BlockId = BlockId {getBlockId :: BS.ByteString}

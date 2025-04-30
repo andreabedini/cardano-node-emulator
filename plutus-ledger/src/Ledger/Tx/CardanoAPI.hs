@@ -6,7 +6,6 @@
 {-# LANGUAGE RankNTypes #-}
 
 {- |
-
 Interface to the transaction types from 'cardano-api'
 -}
 module Ledger.Tx.CardanoAPI (
@@ -31,7 +30,8 @@ module Ledger.Tx.CardanoAPI (
   fromPlutusIndex,
   fromPlutusTxOut,
   fromPlutusTxOutRef,
-) where
+)
+where
 
 import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C
@@ -40,7 +40,6 @@ import Cardano.Ledger.BaseTypes (mkTxIxPartial)
 import Cardano.Ledger.Conway qualified as Conway
 import Cardano.Ledger.Conway.TxBody (ConwayTxBody (ConwayTxBody, ctbReqSignerHashes))
 import Cardano.Ledger.Core qualified as Ledger
-import Cardano.Ledger.Crypto (StandardCrypto)
 import Cardano.Ledger.Shelley.API qualified as C.Ledger
 import Data.Bifunctor (bimap)
 import Data.Map qualified as Map
@@ -84,7 +83,7 @@ fromCardanoTxInsCollateral C.TxInsCollateralNone = []
 fromCardanoTxInsCollateral (C.TxInsCollateral _ txIns) = txIns
 
 toCardanoDatumWitness :: Maybe PV1.Datum -> C.ScriptDatum C.WitCtxTxIn
-toCardanoDatumWitness = maybe C.InlineScriptDatum (C.ScriptDatumForTxIn . toCardanoScriptData . PV1.getDatum)
+toCardanoDatumWitness = maybe C.InlineScriptDatum (C.ScriptDatumForTxIn . Just . toCardanoScriptData . PV1.getDatum)
 
 type WitnessHeader witctx =
   C.ScriptDatum witctx -> C.ScriptRedeemer -> C.ExecutionUnits -> C.ScriptWitness witctx C.ConwayEra
@@ -95,14 +94,11 @@ toCardanoTxInReferenceWitnessHeader (P.Versioned ref lang) = do
   txIn <- toCardanoTxIn ref
   pure $ case lang of
     P.PlutusV1 ->
-      C.PlutusScriptWitness C.PlutusScriptV1InConway C.PlutusScriptV1 $
-        C.PReferenceScript txIn Nothing
+      C.PlutusScriptWitness C.PlutusScriptV1InConway C.PlutusScriptV1 $ C.PReferenceScript txIn
     P.PlutusV2 ->
-      C.PlutusScriptWitness C.PlutusScriptV2InConway C.PlutusScriptV2 $
-        C.PReferenceScript txIn Nothing
+      C.PlutusScriptWitness C.PlutusScriptV2InConway C.PlutusScriptV2 $ C.PReferenceScript txIn
     P.PlutusV3 ->
-      C.PlutusScriptWitness C.PlutusScriptV3InConway C.PlutusScriptV3 $
-        C.PReferenceScript txIn Nothing
+      C.PlutusScriptWitness C.PlutusScriptV3InConway C.PlutusScriptV3 $ C.PReferenceScript txIn
 
 toCardanoTxInScriptWitnessHeader :: P.Versioned PV1.Script -> WitnessHeader witctx
 toCardanoTxInScriptWitnessHeader script =
@@ -147,14 +143,14 @@ toPlutusIndex (C.Ledger.UTxO utxo) =
     . Map.toList
     $ utxo
 
-fromPlutusIndex :: P.UtxoIndex -> C.Ledger.UTxO (Conway.ConwayEra StandardCrypto)
+fromPlutusIndex :: P.UtxoIndex -> C.Ledger.UTxO Conway.ConwayEra
 fromPlutusIndex = C.toLedgerUTxO C.ShelleyBasedEraConway
 
-fromPlutusTxOutRef :: PV3.TxOutRef -> Either ToCardanoError (C.Ledger.TxIn StandardCrypto)
+fromPlutusTxOutRef :: PV3.TxOutRef -> Either ToCardanoError C.Ledger.TxIn
 fromPlutusTxOutRef (PV3.TxOutRef txId i) = C.Ledger.TxIn <$> fromPlutusTxId txId <*> pure (mkTxIxPartial i)
 
-fromPlutusTxId :: PV3.TxId -> Either ToCardanoError (C.Ledger.TxId StandardCrypto)
+fromPlutusTxId :: PV3.TxId -> Either ToCardanoError C.Ledger.TxId
 fromPlutusTxId = fmap C.toShelleyTxId . toCardanoTxId
 
-fromPlutusTxOut :: P.TxOut -> Ledger.TxOut (Conway.ConwayEra StandardCrypto)
+fromPlutusTxOut :: P.TxOut -> Ledger.TxOut Conway.ConwayEra
 fromPlutusTxOut = C.toShelleyTxOut C.ShelleyBasedEraConway . P.toCtxUTxOTxOut
