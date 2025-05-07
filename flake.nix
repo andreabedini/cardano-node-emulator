@@ -4,9 +4,7 @@
 {
   description = "Cardano Node Emulator";
 
-
   inputs = {
-
     iogx = {
       url = "github:input-output-hk/iogx";
       inputs.hackage.follows = "hackage";
@@ -31,15 +29,6 @@
       url = "github:input-output-hk/haskell.nix";
       inputs.hackage.follows = "hackage";
     };
-
-    # Used to provide the cardano-node and cardano-cli executables.
-    # cardano-node = {
-    #   url = "github:input-output-hk/cardano-node?ref=8.8.0-pre";
-    # };
-
-    # mithril = {
-    #   url = "github:input-output-hk/mithril";
-    # };
   };
 
 

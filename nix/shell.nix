@@ -1,13 +1,9 @@
-{ repoRoot, inputs, pkgs, lib, system }:
+{ ... }:
 
 _cabalProject:
 
 {
   name = "cardano-node-emulator";
-
-  packages = [
-    inputs.mithril.packages.mithril-client
-  ];
 
   preCommit = {
     fourmolu.enable = true;
